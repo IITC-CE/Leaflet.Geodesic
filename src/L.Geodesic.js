@@ -7,6 +7,10 @@
   function geodesicPoly(Klass, fill) {
     return Klass.extend({
 
+      options: {
+        segmentsCoeff: 5000
+      },
+
       initialize: function (latlngs, options) {
         Klass.prototype.initialize.call(this,latlngs,options);
         this._geodesicConvert();
@@ -32,7 +36,7 @@
       },
 
       _geodesicConvert: function () {
-        this._latlngs = L.geodesicConvertLines(this._latlngsinit,fill);
+        this._latlngs = geodesicConvertLines(this._latlngsinit,fill,this.options.segmentsCoeff);
       }
     });
   }
@@ -41,7 +45,7 @@
   // as north/south lines have very little curvature in the projection, we can use longitude (east/west) seperation
   // to calculate intermediate points. hopefully this will avoid the rounding issues seen in the full intermediate
   // points code that have been seen
-  function geodesicConvertLine(startLatLng, endLatLng, convertedPoints) {
+  function geodesicConvertLine(startLatLng, endLatLng, convertedPoints, segmentsCoeff) {
 
     // maths based on https://edwilliams.org/avform.htm#Int
 
@@ -52,7 +56,8 @@
 
     var dLng = lng2-lng1;
 
-    var segments = Math.floor(Math.abs(dLng * earthR / 5000));
+    segmentsCoeff = segmentsCoeff || 5000;
+    var segments = Math.floor(Math.abs(dLng * earthR / segmentsCoeff));
 
     if (segments > 1) {
       // pre-calculate some constant values for the loop
@@ -79,9 +84,7 @@
     convertedPoints.push(L.latLng(endLatLng));
   }
 
-
-
-  L.geodesicConvertLines = function (latlngs, fill) {
+  function geodesicConvertLines (latlngs, fill, segmentsCoeff) {
     if (latlngs.length === 0) {
       return [];
     }
@@ -108,10 +111,10 @@
       geodesiclatlngs.push(latlngs[0]);
     }
     for (i = 0, len = latlngs.length - 1; i < len; i++) {
-      geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs);
+      geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs, segmentsCoeff);
     }
     if(fill) {
-      geodesicConvertLine(latlngs[len], latlngs[0], geodesiclatlngs);
+      geodesicConvertLine(latlngs[len], latlngs[0], geodesiclatlngs, segmentsCoeff);
     }
 
     // now add back the offset subtracted above. no wrapping here - the drawing code handles
@@ -120,7 +123,7 @@
     geodesiclatlngs = geodesiclatlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
 
     return geodesiclatlngs;
-  };
+  }
 
   L.GeodesicPolyline = geodesicPoly(L.Polyline, false);
   L.GeodesicPolygon = geodesicPoly(L.Polygon, true);
@@ -139,6 +142,8 @@
     },
 
     options: {
+      segmentsCoeff: 1000,
+      segmentsMin: 48,
       fill: true
     },
 
@@ -187,8 +192,8 @@
         return L.latLng(lat * r2d,lng * r2d);
       };
 
-
-      var segments = Math.max(48,Math.floor(this._radius/1000));
+      var o = this.options;
+      var segments = Math.max(o.segmentsMin,Math.floor(this._radius/o.segmentsCoeff));
 //console.log(" (drawing circle as "+segments+" lines)");
       var points = [];
       for (var i=0; i<segments; i++) {
@@ -216,4 +221,5 @@
     return new L.GeodesicCircle(latlng, radius, options);
   };
 
+  // L.geodesicConvertLines = geodesicConvertLines;
 }());

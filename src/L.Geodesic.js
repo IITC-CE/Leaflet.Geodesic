@@ -6,24 +6,33 @@
 
   function geodesicPoly(Klass, fill) {
     return Klass.extend({
+
       initialize: function (latlngs, options) {
-        Klass.prototype.initialize.call(this, L.geodesicConvertLines(latlngs, fill), options);
-        this._latlngsinit = this._convertLatLngs(latlngs);
+        Klass.prototype.initialize.call(this,latlngs,options);
+        this._geodesicConvert();
       },
+
       getLatLngs: function () {
         return this._latlngsinit;
       },
-      setLatLngs: function (latlngs) {
+
+      _setLatLngs: function (latlngs) {
+        this._bounds = L.latLngBounds();
         this._latlngsinit = this._convertLatLngs(latlngs);
-        return this.redraw();
       },
-      addLatLng: function (latlng) {
-        this._latlngsinit.push(L.latLng(latlng));
-        return this.redraw();
+
+      _defaultShape: function () {
+        var latlngs = this._latlngsinit;
+        return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
       },
-      redraw: function() {
-        this._latlngs = this._convertLatLngs(L.geodesicConvertLines(this._latlngsinit, fill));
+
+      redraw: function () {
+        this._geodesicConvert();
         return Klass.prototype.redraw.call(this);
+      },
+
+      _geodesicConvert: function () {
+        this._latlngs = L.geodesicConvertLines(this._latlngsinit,fill);
       }
     });
   }
@@ -91,7 +100,7 @@
 
     // points are wrapped after being offset relative to the first point coordinate, so they're
     // within +-180 degrees
-    latlngs = latlngs.map(function(a){ return L.latLng(a.lat, a.lng-lngOffset).wrap(); });
+    latlngs = latlngs.map(function (a) { return L.latLng(a.lat, a.lng-lngOffset).wrap(); });
 
     var geodesiclatlngs = [];
 
@@ -108,7 +117,7 @@
     // now add back the offset subtracted above. no wrapping here - the drawing code handles
     // things better when there's no sudden jumps in coordinates. yes, lines will extend
     // beyond +-180 degrees - but they won't be 'broken'
-    geodesiclatlngs = geodesiclatlngs.map(function(a){ return L.latLng(a.lat, a.lng+lngOffset); });
+    geodesiclatlngs = geodesiclatlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
 
     return geodesiclatlngs;
   };
@@ -149,11 +158,11 @@
       return this._latlng;
     },
 
-    getRadius: function() {
+    getRadius: function () {
       return this._radius;
     },
 
-    _calcPoints: function() {
+    _calcPoints: function () {
 //console.log("geodesicCircle: radius = "+this._radius+"m, centre "+this._latlng.lat+","+this._latlng.lng);
 
       // circle radius as an angle from the centre of the earth
@@ -171,7 +180,7 @@
       var cosRadRadius = Math.cos(radRadius);
       var sinRadRadius = Math.sin(radRadius);
 
-      var calcLatLngAtAngle = function(angle) {
+      var calcLatLngAtAngle = function (angle) {
         var lat = Math.asin(sinCentreLat*cosRadRadius + cosCentreLat*sinRadRadius*Math.cos(angle));
         var lng = centreLng + Math.atan2(Math.sin(angle)*sinRadRadius*cosCentreLat, cosRadRadius-sinCentreLat*Math.sin(lat));
 

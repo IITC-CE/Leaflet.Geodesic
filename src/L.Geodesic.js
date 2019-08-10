@@ -47,41 +47,40 @@
   // points code that have been seen
   function geodesicConvertLine(startLatLng, endLatLng, convertedPoints, segmentsCoeff) {
 
-    // maths based on https://edwilliams.org/avform.htm#Int
-
-    var lat1 = startLatLng.lat * d2r;
-    var lat2 = endLatLng.lat * d2r;
     var lng1 = startLatLng.lng * d2r;
     var lng2 = endLatLng.lng * d2r;
-
-    var dLng = lng2-lng1;
+    var dLng = lng1-lng2;
 
     segmentsCoeff = segmentsCoeff || 5000;
     var segments = Math.floor(Math.abs(dLng * earthR / segmentsCoeff));
 
     if (segments > 1) {
+      // maths based on https://edwilliams.org/avform.htm#Int
+
       // pre-calculate some constant values for the loop
+      var lat1 = startLatLng.lat * d2r;
+      var lat2 = endLatLng.lat * d2r;
       var sinLat1 = Math.sin(lat1);
       var sinLat2 = Math.sin(lat2);
       var cosLat1 = Math.cos(lat1);
       var cosLat2 = Math.cos(lat2);
-
       var sinLat1CosLat2 = sinLat1*cosLat2;
       var sinLat2CosLat1 = sinLat2*cosLat1;
-
       var cosLat1CosLat2SinDLng = cosLat1*cosLat2*Math.sin(dLng);
 
       for (var i=1; i < segments; i++) {
-        var iLng = lng1+dLng*(i/segments);
-        var iLat = Math.atan( (sinLat1CosLat2*Math.sin(lng2-iLng) + sinLat2CosLat1*Math.sin(iLng-lng1))
-                              / cosLat1CosLat2SinDLng);
+        var iLng = lng1-dLng*(i/segments);
+        var iLat = Math.atan(
+          (sinLat1CosLat2 * Math.sin(iLng-lng2) - sinLat2CosLat1 * Math.sin(iLng-lng1))
+            / cosLat1CosLat2SinDLng
+        );
 
-        var point = L.latLng ( [iLat*r2d, iLng*r2d] );
+        var point = L.latLng(iLat*r2d, iLng*r2d);
         convertedPoints.push(point);
       }
     }
 
-    convertedPoints.push(L.latLng(endLatLng));
+    convertedPoints.push(endLatLng);
   }
 
   function geodesicConvertLines (latlngs, fill, segmentsCoeff) {
@@ -89,11 +88,10 @@
       return [];
     }
 
-    for (var i = 0, len = latlngs.length; i < len; i++) {
-      if (L.Util.isArray(latlngs[i]) && typeof latlngs[i][0] !== 'number') {
-        return;
-      }
-      latlngs[i] = L.latLng(latlngs[i]);
+    if (!(latlngs[0] instanceof L.LatLng)) { // multiPoly
+      return latlngs.map(function (latlngs) {
+        return geodesicConvertLines(latlngs, fill, segmentsCoeff);
+      });
     }
 
     // geodesic calculations have issues when crossing the anti-meridian. so offset the points
@@ -110,7 +108,7 @@
     if(!fill) {
       geodesiclatlngs.push(latlngs[0]);
     }
-    for (i = 0, len = latlngs.length - 1; i < len; i++) {
+    for (var i = 0, len = latlngs.length - 1; i < len; i++) {
       geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs, segmentsCoeff);
     }
     if(fill) {

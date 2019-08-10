@@ -82,32 +82,9 @@
 
     options: L.extend({},options),
 
-    initialize: function (latlngs, options) {
-      L.Polyline.prototype.initialize.call(this,latlngs,options);
-      this._geodesicConvert();
-    },
-
-    getLatLngs: function () {
-      return this._latlngsinit;
-    },
-
-    _setLatLngs: function (latlngs) {
-      this._bounds = L.latLngBounds();
-      this._latlngsinit = this._convertLatLngs(latlngs);
-    },
-
-    _defaultShape: function () {
-      var latlngs = this._latlngsinit;
-      return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
-    },
-
-    redraw: function () {
-      this._geodesicConvert();
-      return L.Polyline.prototype.redraw.call(this);
-    },
-
-    _geodesicConvert: function () {
-      this._latlngs = this._geodesicConvertLines(this._latlngsinit);
+    _projectLatlngs: function (latlngs, result, projectedBounds) {
+      var geo_latlngs = this._geodesicConvertLines(latlngs);
+      L.Polyline.prototype._projectLatlngs.call(this, geo_latlngs, result, projectedBounds);
     },
 
     _geodesicConvertLine: _geodesicConvertLine,
@@ -136,25 +113,8 @@
   L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
 
 
-  var PolygonMixin = L.extend(PolyMixin,{
-
-    options: L.extend({},options),
-
-    _setLatLngs: function (latlngs) {
-      L.GeodesicPolyline.prototype._setLatLngs.call(this, latlngs);
-      if (L.LineUtil.isFlat(this._latlngsinit)) {
-        this._latlngsinit = [this._latlngsinit];
-      }
-    },
-
-    _defaultShape: function () {
-      var latlngs = this._latlngsinit;
-      return L.LineUtil.isFlat(latlngs[0]) ? latlngs[0] : latlngs[0][0];
-    }
-
-  });
-
-  L.GeodesicPolygon = L.Polygon.extend(PolygonMixin);
+  PolyMixin.options = L.extend({},options); // fix: https://github.com/Leaflet/Leaflet/pull/6766
+  L.GeodesicPolygon = L.Polygon.extend(PolyMixin);
 
 
   L.GeodesicCircle = L.Polygon.extend({

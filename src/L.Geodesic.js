@@ -4,6 +4,88 @@
   var r2d = 180.0/Math.PI;
   var earthR = 6367000.0; // earth radius in meters (doesn't have to be exact)
 
+  // alternative geodesic line intermediate points function
+  // as north/south lines have very little curvature in the projection, we can use longitude (east/west) seperation
+  // to calculate intermediate points. hopefully this will avoid the rounding issues seen in the full intermediate
+  // points code that have been seen
+  function _geodesicConvertLine(startLatLng, endLatLng, convertedPoints) {
+
+    var lng1 = startLatLng.lng * d2r;
+    var lng2 = endLatLng.lng * d2r;
+    var dLng = lng1-lng2;
+
+    var segmentsCoeff = this.options.segmentsCoeff;
+    var segments = Math.floor(Math.abs(dLng * earthR / segmentsCoeff));
+
+    if (segments > 1) {
+      // maths based on https://edwilliams.org/avform.htm#Int
+
+      // pre-calculate some constant values for the loop
+      var lat1 = startLatLng.lat * d2r;
+      var lat2 = endLatLng.lat * d2r;
+      var sinLat1 = Math.sin(lat1);
+      var sinLat2 = Math.sin(lat2);
+      var cosLat1 = Math.cos(lat1);
+      var cosLat2 = Math.cos(lat2);
+      var sinLat1CosLat2 = sinLat1*cosLat2;
+      var sinLat2CosLat1 = sinLat2*cosLat1;
+      var cosLat1CosLat2SinDLng = cosLat1*cosLat2*Math.sin(dLng);
+
+      for (var i=1; i < segments; i++) {
+        var iLng = lng1-dLng*(i/segments);
+        var iLat = Math.atan(
+          (sinLat1CosLat2 * Math.sin(iLng-lng2) - sinLat2CosLat1 * Math.sin(iLng-lng1))
+            / cosLat1CosLat2SinDLng
+        );
+
+        var point = L.latLng(iLat*r2d, iLng*r2d);
+        convertedPoints.push(point);
+      }
+    }
+
+    convertedPoints.push(endLatLng);
+  }
+
+  function _geodesicConvertLines (latlngs, fill) {
+    if (latlngs.length === 0) {
+      return [];
+    }
+
+    if (!(latlngs[0] instanceof L.LatLng)) { // multiPoly
+      return latlngs.map(function (latlngs) {
+        return this._geodesicConvertLines(latlngs, fill);
+      },this);
+    }
+
+    // geodesic calculations have issues when crossing the anti-meridian. so offset the points
+    // so this isn't an issue, then add back the offset afterwards
+    // a center longitude would be ideal - but the start point longitude will be 'good enough'
+    var lngOffset = latlngs[0].lng;
+
+    // points are wrapped after being offset relative to the first point coordinate, so they're
+    // within +-180 degrees
+    latlngs = latlngs.map(function (a) { return L.latLng(a.lat, a.lng-lngOffset).wrap(); });
+
+    var geodesiclatlngs = [];
+
+    if(!fill) {
+      geodesiclatlngs.push(latlngs[0]);
+    }
+    for (var i = 0, len = latlngs.length - 1; i < len; i++) {
+      this._geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs);
+    }
+    if(fill) {
+      this._geodesicConvertLine(latlngs[len], latlngs[0], geodesiclatlngs);
+    }
+
+    // now add back the offset subtracted above. no wrapping here - the drawing code handles
+    // things better when there's no sudden jumps in coordinates. yes, lines will extend
+    // beyond +-180 degrees - but they won't be 'broken'
+    geodesiclatlngs = geodesiclatlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
+
+    return geodesiclatlngs;
+  }
+
   function geodesicPoly(Klass, fill) {
     return Klass.extend({
 
@@ -36,91 +118,13 @@
       },
 
       _geodesicConvert: function () {
-        this._latlngs = geodesicConvertLines(this._latlngsinit,fill,this.options.segmentsCoeff);
-      }
+        this._latlngs = this._geodesicConvertLines(this._latlngsinit,fill);
+      },
+
+      _geodesicConvertLine: _geodesicConvertLine,
+
+      _geodesicConvertLines: _geodesicConvertLines
     });
-  }
-
-  // alternative geodesic line intermediate points function
-  // as north/south lines have very little curvature in the projection, we can use longitude (east/west) seperation
-  // to calculate intermediate points. hopefully this will avoid the rounding issues seen in the full intermediate
-  // points code that have been seen
-  function geodesicConvertLine(startLatLng, endLatLng, convertedPoints, segmentsCoeff) {
-
-    var lng1 = startLatLng.lng * d2r;
-    var lng2 = endLatLng.lng * d2r;
-    var dLng = lng1-lng2;
-
-    segmentsCoeff = segmentsCoeff || 5000;
-    var segments = Math.floor(Math.abs(dLng * earthR / segmentsCoeff));
-
-    if (segments > 1) {
-      // maths based on https://edwilliams.org/avform.htm#Int
-
-      // pre-calculate some constant values for the loop
-      var lat1 = startLatLng.lat * d2r;
-      var lat2 = endLatLng.lat * d2r;
-      var sinLat1 = Math.sin(lat1);
-      var sinLat2 = Math.sin(lat2);
-      var cosLat1 = Math.cos(lat1);
-      var cosLat2 = Math.cos(lat2);
-      var sinLat1CosLat2 = sinLat1*cosLat2;
-      var sinLat2CosLat1 = sinLat2*cosLat1;
-      var cosLat1CosLat2SinDLng = cosLat1*cosLat2*Math.sin(dLng);
-
-      for (var i=1; i < segments; i++) {
-        var iLng = lng1-dLng*(i/segments);
-        var iLat = Math.atan(
-          (sinLat1CosLat2 * Math.sin(iLng-lng2) - sinLat2CosLat1 * Math.sin(iLng-lng1))
-            / cosLat1CosLat2SinDLng
-        );
-
-        var point = L.latLng(iLat*r2d, iLng*r2d);
-        convertedPoints.push(point);
-      }
-    }
-
-    convertedPoints.push(endLatLng);
-  }
-
-  function geodesicConvertLines (latlngs, fill, segmentsCoeff) {
-    if (latlngs.length === 0) {
-      return [];
-    }
-
-    if (!(latlngs[0] instanceof L.LatLng)) { // multiPoly
-      return latlngs.map(function (latlngs) {
-        return geodesicConvertLines(latlngs, fill, segmentsCoeff);
-      });
-    }
-
-    // geodesic calculations have issues when crossing the anti-meridian. so offset the points
-    // so this isn't an issue, then add back the offset afterwards
-    // a center longitude would be ideal - but the start point longitude will be 'good enough'
-    var lngOffset = latlngs[0].lng;
-
-    // points are wrapped after being offset relative to the first point coordinate, so they're
-    // within +-180 degrees
-    latlngs = latlngs.map(function (a) { return L.latLng(a.lat, a.lng-lngOffset).wrap(); });
-
-    var geodesiclatlngs = [];
-
-    if(!fill) {
-      geodesiclatlngs.push(latlngs[0]);
-    }
-    for (var i = 0, len = latlngs.length - 1; i < len; i++) {
-      geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs, segmentsCoeff);
-    }
-    if(fill) {
-      geodesicConvertLine(latlngs[len], latlngs[0], geodesiclatlngs, segmentsCoeff);
-    }
-
-    // now add back the offset subtracted above. no wrapping here - the drawing code handles
-    // things better when there's no sudden jumps in coordinates. yes, lines will extend
-    // beyond +-180 degrees - but they won't be 'broken'
-    geodesiclatlngs = geodesiclatlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
-
-    return geodesiclatlngs;
   }
 
   L.GeodesicPolyline = geodesicPoly(L.Polyline, false);
@@ -219,5 +223,4 @@
     return new L.GeodesicCircle(latlng, radius, options);
   };
 
-  // L.geodesicConvertLines = geodesicConvertLines;
 }());

@@ -46,14 +46,14 @@
     convertedPoints.push(endLatLng);
   }
 
-  function _geodesicConvertLines (latlngs, fill) {
+  function _geodesicConvertLines (latlngs) {
     if (latlngs.length === 0) {
       return [];
     }
 
     if (!(latlngs[0] instanceof L.LatLng)) { // multiPoly
       return latlngs.map(function (latlngs) {
-        return this._geodesicConvertLines(latlngs, fill);
+        return this._geodesicConvertLines(latlngs);
       },this);
     }
 
@@ -68,13 +68,15 @@
 
     var geodesiclatlngs = [];
 
-    if(!fill) {
+    // var isPolygon = this.options.fill; // !wrong: L.Draw use options.fill with polylines
+    var isPolygon = this instanceof L.Polygon;
+    if(!isPolygon) {
       geodesiclatlngs.push(latlngs[0]);
     }
     for (var i = 0, len = latlngs.length - 1; i < len; i++) {
       this._geodesicConvertLine(latlngs[i], latlngs[i+1], geodesiclatlngs);
     }
-    if(fill) {
+    if(isPolygon) {
       this._geodesicConvertLine(latlngs[len], latlngs[0], geodesiclatlngs);
     }
 
@@ -86,49 +88,69 @@
     return geodesiclatlngs;
   }
 
-  function geodesicPoly(Klass, fill) {
-    return Klass.extend({
+  var options = {
+    segmentsCoeff: 5000
+  };
 
-      options: {
-        segmentsCoeff: 5000
-      },
+  var PolyMixin = {
 
-      initialize: function (latlngs, options) {
-        Klass.prototype.initialize.call(this,latlngs,options);
-        this._geodesicConvert();
-      },
+    options: L.extend({},options),
 
-      getLatLngs: function () {
-        return this._latlngsinit;
-      },
+    initialize: function (latlngs, options) {
+      L.Polyline.prototype.initialize.call(this,latlngs,options);
+      this._geodesicConvert();
+    },
 
-      _setLatLngs: function (latlngs) {
-        this._bounds = L.latLngBounds();
-        this._latlngsinit = this._convertLatLngs(latlngs);
-      },
+    getLatLngs: function () {
+      return this._latlngsinit;
+    },
 
-      _defaultShape: function () {
-        var latlngs = this._latlngsinit;
-        return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
-      },
+    _setLatLngs: function (latlngs) {
+      this._bounds = L.latLngBounds();
+      this._latlngsinit = this._convertLatLngs(latlngs);
+    },
 
-      redraw: function () {
-        this._geodesicConvert();
-        return Klass.prototype.redraw.call(this);
-      },
+    _defaultShape: function () {
+      var latlngs = this._latlngsinit;
+      return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
+    },
 
-      _geodesicConvert: function () {
-        this._latlngs = this._geodesicConvertLines(this._latlngsinit,fill);
-      },
+    redraw: function () {
+      this._geodesicConvert();
+      return L.Polyline.prototype.redraw.call(this);
+    },
 
-      _geodesicConvertLine: _geodesicConvertLine,
+    _geodesicConvert: function () {
+      this._latlngs = this._geodesicConvertLines(this._latlngsinit);
+    },
 
-      _geodesicConvertLines: _geodesicConvertLines
-    });
-  }
+    _geodesicConvertLine: _geodesicConvertLine,
 
-  L.GeodesicPolyline = geodesicPoly(L.Polyline, false);
-  L.GeodesicPolygon = geodesicPoly(L.Polygon, true);
+    _geodesicConvertLines: _geodesicConvertLines
+  };
+
+  L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
+
+
+  var PolygonMixin = L.extend(PolyMixin,{
+
+    options: L.extend({},options),
+
+    _setLatLngs: function (latlngs) {
+      L.GeodesicPolyline.prototype._setLatLngs.call(this, latlngs);
+      if (L.LineUtil.isFlat(this._latlngsinit)) {
+        this._latlngsinit = [this._latlngsinit];
+      }
+    },
+
+    _defaultShape: function () {
+      var latlngs = this._latlngsinit;
+      return L.LineUtil.isFlat(latlngs[0]) ? latlngs[0] : latlngs[0][0];
+    }
+
+  });
+
+  L.GeodesicPolygon = L.Polygon.extend(PolygonMixin);
 
 
   L.GeodesicCircle = L.Polygon.extend({

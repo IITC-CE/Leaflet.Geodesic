@@ -134,7 +134,21 @@
 
   L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
 
-  PolyMixin.options = polyOptions; // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+  L.extend(PolyMixin, {
+    options: polyOptions, // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+
+    _setLatLngs: function (latlngs) {
+      L.GeodesicPolyline.prototype._setLatLngs.call(this, latlngs);
+      if (L.LineUtil.isFlat(this._latlngsinit)) {
+        this._latlngsinit = [this._latlngsinit];
+      }
+    },
+
+    _defaultShape: function () {
+      var latlngs = this._latlngsinit;
+      return L.LineUtil.isFlat(latlngs[0]) ? latlngs[0] : latlngs[0][0];
+    }
+  });
   L.GeodesicPolygon = L.Polygon.extend(PolyMixin);
 
   L.GeodesicCircle = L.Polygon.extend({

@@ -64,6 +64,12 @@
       return [];
     }
 
+    if (!(latlngs[0] instanceof L.LatLng)) { // multiple rings
+      return latlngs.map(function (nestedLLs) {
+        return geodesicConvertLines(nestedLLs);
+      });
+    }
+
     // geodesic calculations have issues when crossing the anti-meridian. so offset the points
     // so this isn't an issue, then add back the offset afterwards
     // a center longitude would be ideal - but the start point longitude will be 'good enough'

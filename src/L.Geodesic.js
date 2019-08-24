@@ -94,35 +94,12 @@
 
     _geodesicConvertLines: geodesicConvertLines,
 
-    _geodesicConvert: function () {
-      this._latlngs = this._geodesicConvertLines(this._latlngsinit);
-      this._convertLatLngs(this._latlngs); // update bounds
-    },
-
     options: polyOptions,
 
-    initialize: function (latlngs, options) {
-      L.Polyline.prototype.initialize.call(this, latlngs, options);
-      this._geodesicConvert();
-    },
-
-    getLatLngs: function () {
-      return this._latlngsinit;
-    },
-
-    _setLatLngs: function (latlngs) {
-      this._bounds = L.latLngBounds();
-      this._latlngsinit = this._convertLatLngs(latlngs);
-    },
-
-    _defaultShape: function () {
-      var latlngs = this._latlngsinit;
-      return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
-    },
-
-    redraw: function () {
-      this._geodesicConvert();
-      return L.Path.prototype.redraw.call(this);
+    _projectLatlngs: function (latlngs, result, projectedBounds) {
+      latlngs = this._defaultShape();
+      var geo_latlngs = this._geodesicConvertLines(latlngs);
+      L.Polyline.prototype._projectLatlngs.call(this, geo_latlngs, result, projectedBounds);
     }
   };
 

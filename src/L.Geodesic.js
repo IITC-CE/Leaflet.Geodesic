@@ -105,7 +105,13 @@
 
   L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
 
-  PolyMixin.options = polyOptions; // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+  L.extend(PolyMixin, {
+    options: polyOptions, // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+
+    getLatLngs: function () {  // compatibility workaround for iitc plugins:
+      return this._latlngs[0]; // it would be more proper to fix plugins themselves (layer-count, cross-links)
+    }                          // but it'd be a pain for 3rd-party ones
+  });
   L.GeodesicPolygon = L.Polygon.extend(PolyMixin);
 
   L.GeodesicCircle = L.Polygon.extend({

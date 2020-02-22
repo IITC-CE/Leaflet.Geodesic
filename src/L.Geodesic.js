@@ -4,20 +4,29 @@
   var r2d = 180.0/Math.PI;
   var earthR = 6367000.0; // earth radius in meters (doesn't have to be exact)
 
+  function segmentFn (start, end, line) {
+    var segments = Math.floor(Math.abs(line.dLng * earthR / this.options.segmentsCoeff));
+    if (segments<2) { return false; }
+    line.segments = segments;
+  }
+
   // alternative geodesic line intermediate points function
   // as north/south lines have very little curvature in the projection, we can use longitude (east/west) seperation
   // to calculate intermediate points. hopefully this will avoid the rounding issues seen in the full intermediate
   // points code that have been seen
-  function geodesicConvertLine (start, end, convertedPoints) { // push intermediate points into convertedPoints
-
+  function geoLine (start, end, limitFn) {
     var lng1 = start.lng * d2r;
     var lng2 = end.lng * d2r;
     var dLng = lng1-lng2;
+    var line = {
+      lng1: lng1,
+      lng2: lng2,
+      dLng: dLng
+    }
 
-    var segments = Math.floor(Math.abs(dLng * earthR / this.options.segmentsCoeff));
-    if (segments < 2) { return; }
-
-    // maths based on https://edwilliams.org/avform.htm#Int
+    if (limitFn && false === this[limitFn](start, end, line)) {
+      return;
+    }
 
     // pre-calculate some constant values for the loop
     var lat1 = start.lat * d2r;
@@ -30,16 +39,26 @@
     var sinLat2CosLat1 = sinLat2*cosLat1;
     var cosLat1CosLat2SinDLng = cosLat1*cosLat2*Math.sin(dLng);
 
-    for (var i=1; i < segments; i++) {
-      var iLng = lng1-dLng*(i/segments);
-      var iLat = Math.atan(
-        (sinLat1CosLat2 * Math.sin(iLng-lng2) - sinLat2CosLat1 * Math.sin(iLng-lng1))
+    // maths based on https://edwilliams.org/avform.htm#Int
+    line.getIntPointLat = function (lng) {
+      return Math.atan(
+        (sinLat1CosLat2 * Math.sin(lng-lng2) - sinLat2CosLat1 * Math.sin(lng-lng1))
           / cosLat1CosLat2SinDLng
       );
+    }
+    return line;
+  }
+
+  function geodesicConvertLine (start, end, convertedPoints) { // push intermediate points into convertedPoints
+    var line = this_geoLine(start, end, '_segmentFn');
+    if (!line) { return; }
+
+    for (var i=1; i < line.segments; i++) {
+      var iLng = line.lng1-line.dLng*(i/line.segments);
+      var iLat = line.getIntPointLat(iLng);
       convertedPoints.push(L.latLng(iLat*r2d, iLng*r2d));
     }
   }
-
 
   // iterate pairs of connected vertices with fn(), adding new intermediate vertices (if returned)
   function processPoly (latlngs, fn) {
@@ -86,6 +105,10 @@
   };
 
   var PolyMixin = {
+    _segmentFn: segmentFn,
+
+    _geoLine: geoLine,
+
     _geodesicConvertLine: geodesicConvertLine,
 
     _processPoly: processPoly,

@@ -59,7 +59,7 @@
     return result;
   }
 
-  function geodesicConvertLines (latlngs) {
+  function processWrapped (latlngs, fn) {
     if (latlngs.length === 0) {
       return [];
     }
@@ -73,14 +73,12 @@
     // within +-180 degrees
     latlngs = latlngs.map(function (a) { return L.latLng(a.lat, a.lng-lngOffset).wrap(); });
 
-    var geodesiclatlngs = this._processPoly(latlngs,this._geodesicConvertLine);
+    latlngs = fn.call(this, latlngs);
 
     // now add back the offset subtracted above. no wrapping here - the drawing code handles
     // things better when there's no sudden jumps in coordinates. yes, lines will extend
     // beyond +-180 degrees - but they won't be 'broken'
-    geodesiclatlngs = geodesiclatlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
-
-    return geodesiclatlngs;
+    return latlngs.map(function (a) { return L.latLng(a.lat, a.lng+lngOffset); });
   }
 
   var polyOptions = {
@@ -92,10 +90,13 @@
 
     _processPoly: processPoly,
 
-    _geodesicConvertLines: geodesicConvertLines,
+    _processWrapped: processWrapped,
 
     _geodesicConvert: function () {
-      this._latlngs = this._geodesicConvertLines(this._latlngsinit);
+      this._latlngs = this._processWrapped(this._latlngsinit, function (latlngs) {
+        return this._processPoly(latlngs, this._geodesicConvertLine);
+      });
+
       this._convertLatLngs(this._latlngs); // update bounds
     },
 

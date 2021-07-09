@@ -94,41 +94,24 @@
 
     _geodesicConvertLines: geodesicConvertLines,
 
-    _geodesicConvert: function () {
-      this._latlngs = this._geodesicConvertLines(this._latlngsinit);
-      this._convertLatLngs(this._latlngs); // update bounds
-    },
-
     options: polyOptions,
 
-    initialize: function (latlngs, options) {
-      L.Polyline.prototype.initialize.call(this, latlngs, options);
-      this._geodesicConvert();
-    },
-
-    getLatLngs: function () {
-      return this._latlngsinit;
-    },
-
-    _setLatLngs: function (latlngs) {
-      this._bounds = L.latLngBounds();
-      this._latlngsinit = this._convertLatLngs(latlngs);
-    },
-
-    _defaultShape: function () {
-      var latlngs = this._latlngsinit;
-      return L.LineUtil.isFlat(latlngs) ? latlngs : latlngs[0];
-    },
-
-    redraw: function () {
-      this._geodesicConvert();
-      return L.Path.prototype.redraw.call(this);
+    _projectLatlngs: function (latlngs, result, projectedBounds) {
+      latlngs = this._defaultShape();
+      var geo_latlngs = this._geodesicConvertLines(latlngs);
+      L.Polyline.prototype._projectLatlngs.call(this, geo_latlngs, result, projectedBounds);
     }
   };
 
   L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
 
-  PolyMixin.options = polyOptions; // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+  L.extend(PolyMixin, {
+    options: polyOptions, // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+
+    getLatLngs: function () {  // compatibility workaround for iitc plugins:
+      return this._latlngs[0]; // it would be more proper to fix plugins themselves (layer-count, cross-links)
+    }                          // but it'd be a pain for 3rd-party ones
+  });
   L.GeodesicPolygon = L.Polygon.extend(PolyMixin);
 
   L.GeodesicCircle = L.Polygon.extend({

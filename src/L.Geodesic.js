@@ -64,6 +64,12 @@
       return [];
     }
 
+    if (!(latlngs[0] instanceof L.LatLng)) { // multiple rings
+      return latlngs.map(function (nestedLLs) {
+        return geodesicConvertLines(nestedLLs);
+      });
+    }
+
     // geodesic calculations have issues when crossing the anti-meridian. so offset the points
     // so this isn't an issue, then add back the offset afterwards
     // a center longitude would be ideal - but the start point longitude will be 'good enough'
@@ -128,7 +134,21 @@
 
   L.GeodesicPolyline = L.Polyline.extend(PolyMixin);
 
-  PolyMixin.options = polyOptions; // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+  L.extend(PolyMixin, {
+    options: polyOptions, // workaround for https://github.com/Leaflet/Leaflet/pull/6766/
+
+    _setLatLngs: function (latlngs) {
+      L.GeodesicPolyline.prototype._setLatLngs.call(this, latlngs);
+      if (L.LineUtil.isFlat(this._latlngsinit)) {
+        this._latlngsinit = [this._latlngsinit];
+      }
+    },
+
+    _defaultShape: function () {
+      var latlngs = this._latlngsinit;
+      return L.LineUtil.isFlat(latlngs[0]) ? latlngs[0] : latlngs[0][0];
+    }
+  });
   L.GeodesicPolygon = L.Polygon.extend(PolyMixin);
 
   L.GeodesicCircle = L.Polygon.extend({
